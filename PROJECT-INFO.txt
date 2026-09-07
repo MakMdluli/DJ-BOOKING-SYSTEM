@@ -1,0 +1,7 @@
+SCORPION_JR BOOKING SYSTEM
+Frontend: HTML / CSS / JavaScript
+Backend: Supabase
+Deployment target: Vercel or Netlify
+Authentication: Supabase Auth for admin
+Customer accounts: Not required
+Equipment: DJ service only; sound/lighting/equipment are not included unless separately agreed.
