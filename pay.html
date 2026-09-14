@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pay Deposit | Scorpion_Jr</title><link rel="stylesheet" href="css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><main class="site-shell"><div class="container narrow"><a class="back" href="index.html">← Scorpion_Jr</a><section class="hero-card"><span class="eyebrow">BOOKING PAYMENT</span><h1>Pay your booking deposit</h1><div id="booking" class="card">Loading booking…</div><div id="paybox" class="card hidden"></div></section></div></main><script src="js/supabase.js"></script><script>
+const token=new URLSearchParams(location.search).get('token');let booking=null;
+(async()=>{if(!token){document.getElementById('booking').textContent='Invalid payment link.';return;}const {data,error}=await supabaseClient.rpc('get_payment_booking',{p_token:token});if(error||!data?.length){document.getElementById('booking').textContent='This payment link is invalid or expired.';return;}booking=data[0];document.getElementById('booking').innerHTML=`<h2>${esc(booking.client_name)}</h2><p><b>${esc(booking.event_type)}</b><br>${fmtDate(booking.event_date)} · ${fmtTime(booking.start_time)}–${fmtTime(booking.end_time)}<br>${esc(booking.venue)}</p><div class="notice"><b>Deposit required: E ${money(booking.deposit_amount)}</b><br>Payment confirms your booking only after the payment has been verified.</div>`;if(booking.status!=='AWAITING_PAYMENT'){document.getElementById('paybox').classList.remove('hidden');document.getElementById('paybox').innerHTML=`<h3>Booking status</h3><p>Your booking is currently <b>${esc(booking.status)}</b>.</p>`;return;}await loadPaymentDetails();showPay();})();
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}function money(v){return Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}function fmtDate(v){return new Date(v+'T00:00:00').toLocaleDateString(undefined,{day:'2-digit',month:'long',year:'numeric'});}function fmtTime(v){return v?String(v).slice(0,5):'—';}
+async function loadPaymentDetails(){
+  const {data,error}=await supabaseClient.from('payment_settings').select('*').eq('id',1).maybeSingle();
+  if(error){console.warn(error);window.paymentSettings=null;return;}
+  window.paymentSettings=data;
+}
+function showPay(){
+  const box=document.getElementById('paybox');box.classList.remove('hidden');
+  const s=window.paymentSettings||{};
+  const details=`<div class="notice"><h3>Payment details</h3>
+    <p><b>eMali</b><br>${esc(s.emali_number||'Not configured')}<br>${esc(s.emali_name||'')}</p>
+    <p><b>MTN MoMo</b><br>${esc(s.momo_number||'Not configured')}<br>${esc(s.momo_name||'')}</p>
+    <p><b>Bank / EFT</b><br>Bank: ${esc(s.bank_name||'Not configured')}<br>Account name: ${esc(s.bank_account_name||'')}<br>Account number: ${esc(s.bank_account_number||'')}<br>Branch: ${esc(s.bank_branch||'')}</p>
+    ${s.payment_instructions?`<p><b>Instructions</b><br>${esc(s.payment_instructions).replace(/\n/g,'<br>')}</p>`:''}
+    <p class="muted">Use your booking reference when making payment. Your booking is confirmed only after the payment has been verified.</p>
+  </div>`;
+  box.innerHTML=`<h2>Pay your deposit</h2><p class="muted">Make the deposit using one of the payment methods below, then submit the transaction details for verification.</p>${details}<div class="form-grid"><button class="btn" onclick="choose('EMALI')">eMali</button><button class="btn" onclick="choose('MOMO')">MTN MoMo</button><button class="btn" onclick="choose('BANK')">Bank payment / EFT</button></div><div id="method"></div>`;
+}
+function choose(method){
+  const labels={EMALI:'eMali',MOMO:'MTN MoMo',BANK:'Bank payment / EFT'};
+  document.getElementById('method').innerHTML=`<div class="notice"><b>${labels[method]}</b><br>Make the required deposit using the payment details above, then enter your transaction/reference number below.</div><label>Amount paid</label><input id="amount" type="number" min="0" step="0.01" value="${Number(booking.deposit_amount||0)}"><label>Payment/reference number</label><input id="ref" placeholder="Transaction reference"><button class="btn" onclick="submitIntent('${method}')">I have made the payment</button><p id="msg"></p>`;
+}
+async function submitIntent(method){
+  const msg=document.getElementById('msg');msg.textContent='Submitting…';
+  const ref=document.getElementById('ref')?.value.trim()||null;
+  const amount=Number(document.getElementById('amount')?.value||booking.deposit_amount||0);
+  const {data,error}=await supabaseClient.rpc('submit_payment_intent',{p_token:token,p_method:method,p_reference:ref,p_amount:amount});
+  if(error){msg.className='error';msg.textContent=error.message;return;}
+  msg.className='success';msg.textContent='Payment submitted for verification. You will receive confirmation once the transaction is verified.';
+}
+</script></body></html>

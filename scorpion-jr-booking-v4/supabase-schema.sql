@@ -56,8 +56,18 @@ update public.bookings set payment_token=gen_random_uuid() where payment_token i
 alter table public.bookings alter column payment_token set not null;
 create unique index if not exists bookings_payment_token_unique_idx on public.bookings(payment_token);
 
+alter table public.payments add column if not exists payment_method text default 'BANK';
+alter table public.payments add column if not exists payment_status text default 'PENDING';
+update public.payments set payment_method='BANK' where payment_method is null;
+update public.payments set payment_status='PENDING' where payment_status is null;
+
 alter table public.bookings drop constraint if exists bookings_status_check;
 alter table public.bookings add constraint bookings_status_check check (status in ('PENDING','ACCEPTED','AWAITING_PAYMENT','CONFIRMED','COMPLETED','DECLINED','CANCELLED'));
+alter table public.payments drop constraint if exists payments_payment_method_check;
+alter table public.payments add constraint payments_payment_method_check check (payment_method in ('EMALI','MOMO','BANK'));
+alter table public.payments drop constraint if exists payments_payment_status_check;
+alter table public.payments add constraint payments_payment_status_check check (payment_status in ('PENDING','PAID','FAILED','CANCELLED'));
+
 -- Generated range used to prevent overlapping accepted/deposit/confirmed bookings.
 alter table public.bookings
     add column if not exists event_window tsrange
@@ -95,36 +105,6 @@ create table if not exists public.payments (
     reference text,
     created_at timestamptz not null default now()
 );
-
-create table if not exists public.payment_settings (
-    id integer primary key default 1 check (id = 1),
-    emali_number text,
-    emali_name text,
-    momo_number text,
-    momo_name text,
-    bank_name text,
-    bank_account_name text,
-    bank_account_number text,
-    bank_branch text,
-    payment_instructions text,
-    updated_at timestamptz not null default now()
-);
-
-insert into public.payment_settings (id)
-values (1)
-on conflict (id) do nothing;
-
--- Payment migration helpers for existing installations.
-alter table public.payment_settings add column if not exists momo_number text;
-alter table public.payment_settings add column if not exists momo_name text;
-alter table public.payments add column if not exists payment_method text default 'BANK';
-alter table public.payments add column if not exists payment_status text default 'PENDING';
-update public.payments set payment_method='BANK' where payment_method is null;
-update public.payments set payment_status='PENDING' where payment_status is null;
-alter table public.payments drop constraint if exists payments_payment_method_check;
-alter table public.payments add constraint payments_payment_method_check check (payment_method in ('EMALI','MOMO','BANK'));
-alter table public.payments drop constraint if exists payments_payment_status_check;
-alter table public.payments add constraint payments_payment_status_check check (payment_status in ('PENDING','PAID','FAILED','CANCELLED'));
 
 create table if not exists public.reviews (
     id uuid primary key default gen_random_uuid(),
@@ -333,22 +313,6 @@ alter table public.bookings enable row level security;
 alter table public.blocked_dates enable row level security;
 alter table public.payments enable row level security;
 alter table public.reviews enable row level security;
-alter table public.payment_settings enable row level security;
-
-
--- Payment details are intentionally public because customers need them to pay.
-drop policy if exists "Public can read payment settings" on public.payment_settings;
-create policy "Public can read payment settings"
-on public.payment_settings for select
-to anon, authenticated
-using (true);
-
-drop policy if exists "Admins manage payment settings" on public.payment_settings;
-create policy "Admins manage payment settings"
-on public.payment_settings for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
 
 -- Profiles: admin only.
 drop policy if exists "Admins can read profiles" on public.profiles;
@@ -470,9 +434,9 @@ with check (public.is_admin());
 -- Customer payment portal must not expose the full bookings table; use RPCs above.
 -- Existing admin-only payments policy remains in force.
 
--- Payments are manual in this version. Provider columns are retained only for backwards compatibility.
+-- V4 PAYMENT PROVIDER MIGRATION
 alter table public.payments add column if not exists provider text default 'MANUAL';
 alter table public.payments add column if not exists provider_reference text;
 create index if not exists payments_provider_reference_idx on public.payments(provider_reference);
 
--- Customer payment details are read from payment_settings.
+-- Keep customer portal safe: it exposes booking details but no bank/account credentials.
