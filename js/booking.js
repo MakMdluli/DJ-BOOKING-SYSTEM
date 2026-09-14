@@ -68,9 +68,23 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        const { error } = await supabaseClient
-            .from("bookings")
-            .insert([payload]);
+        const { data: createdBooking, error } = await supabaseClient.rpc(
+            "create_booking_request",
+            {
+                p_client_name: payload.client_name,
+                p_whatsapp: payload.whatsapp,
+                p_email: payload.email,
+                p_event_type: payload.event_type,
+                p_event_date: payload.event_date,
+                p_start_time: payload.start_time,
+                p_end_time: payload.end_time,
+                p_venue: payload.venue,
+                p_location: payload.location,
+                p_guest_count: payload.guest_count,
+                p_package_id: payload.package_id,
+                p_notes: payload.notes
+            }
+        );
 
         if (error) {
             console.error(error);
@@ -80,8 +94,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
+        if (createdBooking && location.protocol !== 'file:') {
+            fetch('/api/notify', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({event:'booking_created', booking_id:createdBooking})
+            }).catch(err => console.warn('Admin email notification failed:', err));
+        }
+
         form.reset();
-        message.textContent = "Booking request submitted. Scorpion_Jr will review it and contact you.";
+        message.className = 'success';
+        message.textContent = "Booking request submitted. Scorpion_Jr has been notified and will review it.";
     });
 });
 

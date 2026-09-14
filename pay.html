@@ -29,6 +29,7 @@ async function submitIntent(method){
   const amount=Number(document.getElementById('amount')?.value||booking.deposit_amount||0);
   const {data,error}=await supabaseClient.rpc('submit_payment_intent',{p_token:token,p_method:method,p_reference:ref,p_amount:amount});
   if(error){msg.className='error';msg.textContent=error.message;return;}
-  msg.className='success';msg.textContent='Payment submitted for verification. You will receive confirmation once the transaction is verified.';
+  if(data && location.protocol!=='file:') fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'payment_submitted',payment_id:data})}).catch(err=>console.warn('Admin payment email failed:',err));
+  msg.className='success';msg.textContent='Payment submitted for verification. Scorpion_Jr has been notified. You will receive confirmation once the transaction is verified.';
 }
 </script></body></html>

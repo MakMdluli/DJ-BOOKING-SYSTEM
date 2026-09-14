@@ -159,6 +159,38 @@ create table if not exists public.notifications (
 );
 create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
 
+
+-- Email notification delivery ledger. Service-side Vercel notifications use this to prevent duplicates.
+create table if not exists public.notification_deliveries (
+    id uuid primary key default gen_random_uuid(),
+    delivery_key text not null unique,
+    booking_id uuid not null references public.bookings(id) on delete cascade,
+    event_type text not null,
+    recipient text not null,
+    created_at timestamptz not null default now()
+);
+create index if not exists notification_deliveries_booking_idx on public.notification_deliveries(booking_id);
+
+-- Every new booking creates an in-dashboard DJ notification immediately.
+create or replace function public.notify_new_booking()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    insert into public.notifications(booking_id,notification_type,title,message)
+    values(NEW.id,'BOOKING_NEW','New booking request',
+           NEW.client_name||' submitted a '||NEW.event_type||' booking request for '||to_char(NEW.event_date,'DD Mon YYYY')||'.');
+    return NEW;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_booking on public.bookings;
+create trigger trg_notify_new_booking
+after insert on public.bookings
+for each row execute function public.notify_new_booking();
+
 -- Admin helper. SECURITY DEFINER avoids RLS recursion.
 create or replace function public.is_admin()
 returns boolean
@@ -213,6 +245,35 @@ end;
 $$;
 
 grant execute on function public.check_dj_availability(date,time,time) to anon, authenticated;
+
+
+-- Public booking submission RPC. Returns the new booking id without exposing the bookings table.
+create or replace function public.create_booking_request(
+    p_client_name text, p_whatsapp text, p_email text, p_event_type text,
+    p_event_date date, p_start_time time, p_end_time time, p_venue text,
+    p_location text, p_guest_count integer default null, p_package_id uuid default null, p_notes text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_id uuid;
+begin
+    if p_end_time <= p_start_time then raise exception 'End time must be later than start time'; end if;
+    if p_event_date < current_date then raise exception 'Event date must be in the future'; end if;
+    if p_package_id is null or not exists(select 1 from public.packages where id=p_package_id and active=true) then raise exception 'Please select an active package'; end if;
+    if exists(select 1 from public.blocked_dates where blocked_date=p_event_date) then raise exception 'That date is unavailable'; end if;
+    insert into public.bookings(client_name,whatsapp,email,event_type,event_date,start_time,end_time,venue,location,guest_count,package_id,notes)
+    values(trim(p_client_name),trim(p_whatsapp),trim(p_email),trim(p_event_type),p_event_date,p_start_time,p_end_time,trim(p_venue),trim(p_location),p_guest_count,p_package_id,p_notes)
+    returning id into v_id;
+    return v_id;
+exception
+    when exclusion_violation then raise exception 'That time has just been booked. Please choose another time';
+end;
+$$;
+grant execute on function public.create_booking_request(text,text,text,text,date,time,time,text,text,integer,uuid,text) to anon, authenticated;
 
 -- Customer payment portal: exposes only non-sensitive booking details by payment token.
 create or replace function public.get_payment_booking(p_token uuid)
@@ -466,6 +527,16 @@ on public.notifications for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+
+-- Delivery ledger is server-managed and never exposed to public clients.
+alter table public.notification_deliveries enable row level security;
+drop policy if exists "No public access to notification deliveries" on public.notification_deliveries;
+create policy "No public access to notification deliveries"
+on public.notification_deliveries for all
+to anon, authenticated
+using (false)
+with check (false);
 
 -- Customer payment portal must not expose the full bookings table; use RPCs above.
 -- Existing admin-only payments policy remains in force.

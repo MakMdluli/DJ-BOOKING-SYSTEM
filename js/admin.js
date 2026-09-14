@@ -11,10 +11,17 @@ async function updateBookingStatus(id,status,extra={}){
     const {error}=await supabaseClient.from('bookings').update({status,...extra}).eq('id',id);
     if(error)throw error;
     if(before?.status!=='ACCEPTED' && status==='ACCEPTED'){
-        await supabaseClient.from('notifications').insert({booking_id:id,notification_type:'BOOKING_ACCEPTED',title:'Booking accepted',message:'A booking request has been accepted. The customer can now be sent the payment request.'});
+        await supabaseClient.from('notifications').insert({booking_id:id,notification_type:'BOOKING_ACCEPTED',title:'Booking accepted',message:'A booking request has been accepted. The customer will be notified.'});
     }
     if(before?.status!=='AWAITING_PAYMENT' && status==='AWAITING_PAYMENT'){
-        await supabaseClient.from('notifications').insert({booking_id:id,notification_type:'PAYMENT_REQUEST',title:'Payment requested',message:'The booking is awaiting the required deposit. A payment link is available from the booking.'});
+        await supabaseClient.from('notifications').insert({booking_id:id,notification_type:'PAYMENT_REQUEST',title:'Payment requested',message:'The booking is awaiting the required deposit. The customer has been emailed a payment request.'});
+        if(location.protocol!=='file:') fetch('../api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'payment_requested',booking_id:id})}).catch(err=>console.warn('Customer payment email failed:',err));
+    }
+    if(status==='DECLINED' && before?.status!=='DECLINED'){
+        if(location.protocol!=='file:') fetch('../api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'booking_declined',booking_id:id})}).catch(err=>console.warn('Customer decline email failed:',err));
+    }
+    if(status==='CANCELLED' && before?.status!=='CANCELLED'){
+        if(location.protocol!=='file:') fetch('../api/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'booking_cancelled',booking_id:id})}).catch(err=>console.warn('Customer cancellation email failed:',err));
     }
 }
 async function unreadNotificationCount(){const {count}=await supabaseClient.from('notifications').select('*',{count:'exact',head:true}).is('read_at',null);return count||0;}
