@@ -120,7 +120,7 @@ module.exports = async (req, res) => {
       if (!(await claimDelivery(b.id, event, recipient))) return json(res, 200, {sent:false, duplicate:true});
       let subject, title, body;
       if (event === 'payment_requested') {
-        const baseUrl = process.env.PUBLIC_SITE_URL || 'https://dj-booking-system-ivory.vercel.app';
+        const baseUrl = process.env.SITE_URLS || 'https://dj-booking-system-ivory.vercel.app';
         const link = `${baseUrl.replace(/\/$/,'')}/pay.html?token=${encodeURIComponent(b.payment_token)}`;
         subject = 'Your Scorpion_Jr booking has been accepted — payment required';
         title = 'Booking accepted — deposit required';
