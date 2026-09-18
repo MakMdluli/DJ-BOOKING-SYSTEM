@@ -1,19 +1,29 @@
-Scorpion_Jr DJ Booking System – V2
+SCORPION_JR BOOKING SYSTEM V6
 
-Frontend: Plain HTML/CSS/JavaScript
+Frontend: HTML + CSS + JavaScript
 Backend: Supabase
-Deployment: Vercel / Netlify / static hosting
+Deployment: Vercel
+Notifications: Brevo
+Payment channels: eMali, MTN MoMo, Bank/EFT (manual verification)
+Customer accounts: not required
 
-V2 additions:
-- Functional admin booking management
-- Booking detail view and status changes
-- Quote and deposit fields
-- Mark deposit paid -> records payment and confirms booking
-- Dashboard counts and upcoming bookings
-- Calendar / schedule view
-- Client list derived from bookings
-- Package create/edit/activate/hide
-- Review publish/unpublish moderation
-- Payment listing
-- Admin authentication and role protection
-- Existing database overlap protection retained
+New V6 features:
+- Template 3 inspired public frontend
+- Media / EPK page
+- Customer quotation and invoice downloads
+- Automatic quotations/invoices
+- Invoice tracker
+- Setlist builder foundation
+- Existing booking/calendar/availability/payment workflow preserved
+
+Supabase:
+Run supabase-v6-upgrade.sql AFTER the existing V4 schema.
+
+Vercel environment variables:
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+BREVO_API_KEY
+NOTIFICATION_FROM_EMAIL
+NOTIFICATION_FROM_NAME
+ADMIN_NOTIFICATION_EMAIL
+SITE_URLS

@@ -23,7 +23,7 @@ Set these Vercel environment variables:
 - `ADMIN_NOTIFICATION_EMAIL` = the email address that should receive admin alerts
 - `SUPABASE_URL` = your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` = your Supabase service-role key (Vercel server environment variable only; never put this in frontend files)
-- `PUBLIC_SITE_URL` = `https://dj-booking-system-ivory.vercel.app`
+- `SITE_URLS` = `https://dj-booking-system-ivory.vercel.app`
 
 ## Supabase SQL
 
